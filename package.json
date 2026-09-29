@@ -1,0 +1,20 @@
+{
+  "name": "simongmao",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npm run dev:free-ports && concurrently -k -n backend,frontend -c cyan,green \"cross-env JWT_SECRET=dev_jwt_secret_change_me ADMIN_CONFIRM_CODE=123456 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gmao FRONTEND_URL=http://localhost:5173 npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:free-ports": "kill-port 3000 5173",
+    "dev:backend": "cross-env JWT_SECRET=dev_jwt_secret_change_me ADMIN_CONFIRM_CODE=123456 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gmao FRONTEND_URL=http://localhost:5173 npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "docker:up": "node scripts/docker-compose-runner.js up -d --build",
+    "docker:down": "node scripts/docker-compose-runner.js down",
+    "docker:logs": "node scripts/docker-compose-runner.js logs -f",
+    "docker:reset": "node scripts/docker-compose-runner.js down -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "kill-port": "^2.0.1"
+  }
+}

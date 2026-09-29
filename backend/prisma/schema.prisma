@@ -1,0 +1,291 @@
+// ============================================================
+// Schéma Prisma — GMAO v1.0
+// Modules couverts : AUTH + EQUIPEMENTS
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  ADMIN
+  MAINTENANCE
+  PRODUCTION
+}
+
+// ============================================================
+// MODULE: AUTH
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  nom          String
+  prenom       String
+  role         Role     @default(MAINTENANCE)
+  passwordHash String   @map("password_hash")
+  actif        Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  interventionsDemandees     Intervention[] @relation("demandeur")
+  interventionsTechniciennes Intervention[] @relation("technicien")
+  mouvementsStock            MouvementStock[]
+  journalActions             JournalAction[]
+  refreshTokens              RefreshToken[]
+  documentsCrees            Document[]     @relation("documents_crees")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model JournalAction {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  action      String
+  module      String
+  entiteType  String?  @map("entite_type")
+  entiteId    String?  @map("entite_id")
+  valeurAvant Json?    @map("valeur_avant")
+  valeurApres Json?    @map("valeur_apres")
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([module, action])
+  @@index([createdAt])
+  @@map("journal_actions")
+}
+
+// ============================================================
+// MODULE: EQUIPEMENTS
+// ============================================================
+
+model Atelier {
+  id          String   @id @default(uuid())
+  nom         String
+  description String?
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  machines Machine[]
+
+  @@map("ateliers")
+}
+
+model Machine {
+  id                     String   @id @default(uuid())
+  atelierId              String   @map("atelier_id")
+  nom                    String
+  marque                 String?
+  modele                 String?
+  referenceFournisseur   String?  @map("reference_fournisseur")
+  numeroSerie            String?  @map("numero_serie")
+  localisation           String?
+  informationsTechniques String?  @map("informations_techniques")
+  photoUrl               String?  @map("photo_url")
+  actif                  Boolean  @default(true)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  atelier       Atelier        @relation(fields: [atelierId], references: [id])
+  elements      Element[]
+  interventions Intervention[]
+  documents     Document[]
+  pieceMachines PieceMachine[]
+
+  @@index([atelierId])
+  @@map("machines")
+}
+
+model Element {
+  id                  String  @id @default(uuid())
+  machineId           String  @map("machine_id")
+  nom                 String
+  chaineFonctionnelle String? @map("chaine_fonctionnelle")
+  description         String?
+  ordre               Int     @default(0)
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId])
+  @@map("elements")
+}
+
+// ============================================================
+// MODULE: CORRECTIF (placeholder — complété étape 4)
+// ============================================================
+
+enum EtatIntervention {
+  DEMANDE
+  EN_COURS
+  PREPARATION
+  URGENT
+  TERMINE
+  A_CLOTURER
+  AUTRE
+}
+
+enum PrioriteIntervention {
+  FAIBLE
+  NORMALE
+  HAUTE
+  URGENT
+}
+
+model Intervention {
+  id                  String               @id @default(uuid())
+  machineId           String               @map("machine_id")
+  demandeurId         String               @map("demandeur_id")
+  technicienId        String?              @map("technicien_id")
+  typeTravaux         String?              @map("type_travaux")
+  etat                EtatIntervention     @default(DEMANDE)
+  priorite            PrioriteIntervention @default(NORMALE)
+  constat             String?
+  compteRendu         String?              @map("compte_rendu")
+  tempsInterventionH  Float?               @map("temps_intervention_h")
+  tempsPanneH         Float?               @map("temps_panne_h")
+  coutReel            Float?               @map("cout_reel")
+  coutTheorique       Float?               @map("cout_theorique")
+  dateDemande         DateTime             @default(now()) @map("date_demande")
+  dateDebut           DateTime?            @map("date_debut")
+  dateFin             DateTime?            @map("date_fin")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  machine     Machine  @relation(fields: [machineId], references: [id])
+  demandeur   User     @relation("demandeur",  fields: [demandeurId],  references: [id])
+  technicien  User?    @relation("technicien", fields: [technicienId], references: [id])
+  mouvementsStock MouvementStock[]
+
+  @@index([machineId])
+  @@index([etat])
+  @@map("interventions")
+}
+
+// ============================================================
+// MODULE: STOCK (placeholder — complété étape 5)
+// ============================================================
+
+model Fournisseur {
+  id              String  @id @default(uuid())
+  nom             String
+  contact         String?
+  email           String?
+  telephone       String?
+  delaiLivraisonJ Int?    @map("delai_livraison_j")
+  conditions      String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  pieces Piece[]
+
+  @@map("fournisseurs")
+}
+
+model Piece {
+  id                 String   @id @default(uuid())
+  fournisseurId      String?  @map("fournisseur_id")
+  reference          String
+  nom                String
+  description        String?
+  quantiteStock      Int      @default(0) @map("quantite_stock")
+  seuilAlerte        Int      @default(0) @map("seuil_alerte")
+  prixUnitaire       Float    @default(0) @map("prix_unitaire")
+  emplacementPhysique String? @map("emplacement_physique")
+  lienCommande       String?  @map("lien_commande")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  fournisseur   Fournisseur?   @relation(fields: [fournisseurId], references: [id])
+  pieceMachines PieceMachine[]
+  mouvements    MouvementStock[]
+  documents     Document[]
+
+  @@map("pieces")
+}
+
+model PieceMachine {
+  pieceId   String @map("piece_id")
+  machineId String @map("machine_id")
+  notes     String?
+
+  piece   Piece   @relation(fields: [pieceId],   references: [id])
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@id([pieceId, machineId])
+  @@map("piece_machine")
+}
+
+model MouvementStock {
+  id             String       @id @default(uuid())
+  pieceId        String       @map("piece_id")
+  userId         String?      @map("user_id")
+  interventionId String?      @map("intervention_id")
+  type           String       // ENTREE | SORTIE
+  quantite       Int
+  prixUnitaireSnapshot Float? @map("prix_unitaire_snapshot")
+  notes          String?
+  dateMouvement  DateTime     @default(now()) @map("date_mouvement")
+
+  piece        Piece        @relation(fields: [pieceId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  intervention Intervention? @relation(fields: [interventionId], references: [id])
+
+  @@map("mouvements_stock")
+}
+
+// ============================================================
+// MODULE: DOCUMENTS — modèle complet avec versionnage
+// ============================================================
+
+model Document {
+  id          String   @id @default(uuid())
+  groupId     String   @map("group_id")          // Regroupe toutes les versions du même document
+  machineId   String?  @map("machine_id")
+  pieceId     String?  @map("piece_id")
+  titre       String
+  description String?
+  typeDoc     String   @map("type_doc")           // MANUEL | SCHEMA | PROCEDURE | FICHE_SECURITE | AUTRE
+  urlFichier  String?  @map("url_fichier")        // chemin relatif dans /uploads/
+  mimeType    String?  @map("mime_type")
+  tailleFichier Int?   @map("taille_fichier")     // taille en octets
+  urlExterne  String?  @map("url_externe")        // lien URL externe
+  version     Int      @default(1)
+  isCurrent   Boolean  @default(true) @map("is_current")
+  noteVersion String?  @map("note_version")       // description du changement
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  machine  Machine? @relation(fields: [machineId], references: [id])
+  piece    Piece?   @relation(fields: [pieceId],   references: [id])
+  createur User?    @relation("documents_crees", fields: [createdBy], references: [id])
+
+  @@index([groupId])
+  @@index([machineId])
+  @@index([pieceId])
+  @@index([typeDoc])
+  @@index([isCurrent])
+  @@map("documents")
+}
